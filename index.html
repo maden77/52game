@@ -52,17 +52,74 @@
 
 <script>
     // ==========================================
-    // ⚠️ GANTI BAGIAN INI DENGAN MILIK ANDA ⚠️
+    // KONFIGURASI ANDA
     // ==========================================
     const PROGRAM_ID_STR = "EKVN7AXMJF1punDCNrGuCNFQ2aP8a4h6ZLtf4tyxhvoD"; 
 
-    // Masukkan IDL yang Anda copy dari Solana Playground
-    const IDL = { 
-        "version": "0.1.0",
-        "name": "game_52",
-        "instructions": [
-EKVN7AXMJF1punDCNrGuCNFQ2aP8a4h6ZLtf4tyxhvoD
-        ]
+    // IDL SUDAH DIPERBAIKI (Sesuai dengan kode Rust Anda)
+    const IDL = {
+      "version": "0.1.0",
+      "name": "game_52",
+      "instructions": [
+        {
+          "name": "createGame",
+          "accounts": [
+            { "name": "game", "isMut": true, "isSigner": true },
+            { "name": "player1", "isMut": true, "isSigner": true },
+            { "name": "systemProgram", "isMut": false, "isSigner": false }
+          ],
+          "args": [
+            { "name": "guess", "type": "u8" },
+            { "name": "wager", "type": "u64" }
+          ]
+        },
+        {
+          "name": "joinAndPlay",
+          "accounts": [
+            { "name": "game", "isMut": true, "isSigner": false },
+            { "name": "player1", "isMut": true, "isSigner": false },
+            { "name": "player2", "isMut": true, "isSigner": true },
+            { "name": "devAccount", "isMut": true, "isSigner": false },
+            { "name": "systemProgram", "isMut": false, "isSigner": false }
+          ],
+          "args": [
+            { "name": "_randomSeed", "type": "u64" }
+          ]
+        }
+      ],
+      "accounts": [
+        {
+          "name": "Game",
+          "type": {
+            "kind": "struct",
+            "fields": [
+              { "name": "player1", "type": "publicKey" },
+              { "name": "player1Guess", "type": "u8" },
+              { "name": "wager", "type": "u64" },
+              { "name": "status", "type": { "defined": "GameStatus" } },
+              { "name": "player2", "type": "publicKey" },
+              { "name": "result", "type": "u8" }
+            ]
+          }
+        }
+      ],
+      "types": [
+        {
+          "name": "GameStatus",
+          "type": {
+            "kind": "enum",
+            "variants": [
+              { "name": "WaitingForPlayer2" },
+              { "name": "Finished" }
+            ]
+          }
+        }
+      ],
+      "errors": [
+        { "code": 6000, "name": "InvalidGuess", "msg": "Tebakan harus 2 atau 5" },
+        { "code": 6001, "name": "InvalidWager", "msg": "Taruhan harus tepat 0.01 SOL" },
+        { "code": 6002, "name": "GameNotAvailable", "msg": "Game tidak tersedia atau sudah selesai" }
+      ]
     };
     // ==========================================
 
@@ -147,7 +204,7 @@ EKVN7AXMJF1punDCNrGuCNFQ2aP8a4h6ZLtf4tyxhvoD
 
         } catch (err) {
             console.error(err);
-            alert("Gagal membuat game. Cek console untuk detail.");
+            alert("Gagal membuat game. Pastikan dompet Anda punya saldo Devnet.");
         } finally {
             createGameBtn.innerText = "Buat Game (Pasang 0.01 SOL)";
             createGameBtn.disabled = false;
@@ -157,7 +214,7 @@ EKVN7AXMJF1punDCNrGuCNFQ2aP8a4h6ZLtf4tyxhvoD
     joinGameBtn.addEventListener('click', async () => {
         if (!program || !walletPublicKey) return;
         const gameAddressStr = document.getElementById('gameAddressInput').value;
-        
+
         if (!gameAddressStr) return alert("Masukkan alamat game terlebih dahulu!");
 
         joinGameBtn.innerText = "Memproses...";
