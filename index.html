@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Tebak Angka Solana (Simulasi)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: white; text-align: center; padding: 20px; margin: 0; }
+        .container { max-width: 450px; margin: auto; background: #1e1e1e; padding: 25px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.5); border: 1px solid #333; }
+        h2 { color: #14F195; margin-top: 0; }
+        button { background: #14F195; color: #000; border: none; padding: 12px 20px; font-weight: bold; font-size: 16px; border-radius: 8px; cursor: pointer; margin: 8px 0; width: 100%; transition: 0.2s; }
+        button:hover { background: #0fba72; }
+        button:disabled { background: #555; color: #999; cursor: not-allowed; }
+        select, input { padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; width: 100%; box-sizing: border-box; font-size: 16px; }
+        .dev-info { font-size: 12px; color: #777; margin-top: 25px; border-top: 1px solid #333; padding-top: 15px; }
+        .box { border: 1px solid #333; padding: 15px; border-radius: 8px; margin-bottom: 15px; background: #252525; }
+        .wallet-status { font-size: 13px; color: #aaa; word-break: break-all; margin-bottom: 15px; }
+        .result-box { margin-top: 20px; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 18px; display: none; }
+        .win { background-color: #1b4332; color: #4ade80; border: 1px solid #4ade80; }
+        .lose { background-color: #4a1c1c; color: #f87171; border: 1px solid #f87171; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Tebak Angka (2 atau 5)</h2>
+    <p style="color: #ffb703; font-weight: bold;">Taruhan: 0.01 SOL</p>
+
+    <button id="connectBtn">Hubungkan Wallet (Simulasi)</button>
+    <div id="walletAddress" class="wallet-status">Status: Belum terhubung</div>
+
+    <div class="box">
+        <h3 style="margin-top: 0; color: #4cc9f0;">Pemain 1: Buat Game</h3>
+        <select id="guessSelect">
+            <option value="2">Tebak Angka 2</option>
+            <option value="5">Tebak Angka 5</option>
+        </select>
+        <button id="createGameBtn" disabled>Buat Game (Pasang 0.01 SOL)</button>
+    </div>
+
+    <div class="box">
+        <h3 style="margin-top: 0; color: #f8961e;">Pemain 2: Bergabung</h3>
+        <input type="text" id="gameAddressInput" placeholder="Masukkan Alamat Game">
+        <button id="joinGameBtn" disabled>Pasang Taruhan & Main</button>
+    </div>
+
+    <div id="resultBox" class="result-box"></div>
+
+    <div class="dev-info">
+        Developer Fee: 0.5% ke 3ninw...ELZc5
+    </div>
+</div>
+
+<!-- Import Library Solana -->
+<script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
+
+<script>
+    let walletPublicKey = null;
+
+    const connectBtn = document.getElementById('connectBtn');
+    const createGameBtn = document.getElementById('createGameBtn');
+    const joinGameBtn = document.getElementById('joinGameBtn');
+    const walletAddressText = document.getElementById('walletAddress');
+    const resultBox = document.getElementById('resultBox');
+
+    // Fungsi mendeteksi Wallet (PC/Mobile)
+    const getProvider = () => {
+        if ("phantom" in window) {
+            const provider = window.phantom?.solana;
+            if (provider?.isPhantom) return provider;
+        }
+        if ("solana" in window) return window.solana;
+        
+        // Deep link untuk HP
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+            const currentUrl = window.location.href;
+            const encodedUrl = encodeURIComponent(currentUrl);
+            window.location.href = `https://phantom.app/ul/browse/${encodedUrl}?ref=${encodedUrl}`;
+            return null;
+        }
+        return null;
+    };
+
+    // Tombol Connect
+    connectBtn.addEventListener('click', async () => {
+        const wallet = getProvider();
+        if (!wallet) {
+            // Jika user tidak punya wallet, kita buatkan alamat "Simulasi" acak
+            walletPublicKey = "Simulasi-" + Math.floor(Math.random() * 1000000);
+            walletAddressText.innerText = `Terhubung (Simulasi): ${walletPublicKey}`;
+        } else {
+            try {
+                const response = await wallet.connect();
+                walletPublicKey = response.publicKey.toString();
+                walletAddressText.innerText = `Terhubung: ${walletPublicKey}`;
+            } catch (err) {
+                console.error(err);
+                return alert("Gagal terhubung ke wallet.");
+            }
+        }
+
+        connectBtn.innerText = "Wallet Terhubung";
+        connectBtn.disabled = true;
+        createGameBtn.disabled = false;
+        joinGameBtn.disabled = false;
+    });
+
+    // Pemain 1: Buat Game
+    createGameBtn.addEventListener('click', () => {
+        resultBox.style.display = "none";
+        createGameBtn.innerText = "Game Dibuat!";
+        
+        // Buat ID Game acak (Pura-pura)
+        const fakeGameAddress = "Game-" + Math.floor(Math.random() * 100000) + "-SOL";
+        document.getElementById('gameAddressInput').value = fakeGameAddress;
+        
+        alert(`Game Berhasil Dibuat (Simulasi)!\n\nAlamat Game Anda: ${fakeGameAddress}\nBerikan alamat ini ke Pemain 2.`);
+        
+        createGameBtn.innerText = "Buat Game (Pasang 0.01 SOL)";
+    });
+
+    // Pemain 2: Join & Main
+    joinGameBtn.addEventListener('click', () => {
+        const gameAddress = document.getElementById('gameAddressInput').value;
+        if (!gameAddress) return alert("Masukkan alamat game dulu (atau klik 'Buat Game' untuk otomatis).");
+
+        joinGameBtn.innerText = "Mengacak Angka...";
+        joinGameBtn.disabled = true;
+
+        // Simulasi jeda loading 1.5 detik
+        setTimeout(() => {
+            // LOGIKA PENGACAKAN SIMULASI
+            const possibleNumbers = [2, 5];
+            const randomResult = possibleNumbers[Math.floor(Math.random() * possibleNumbers.length)];
+            
+            const player1Guess = parseInt(document.getElementById('guessSelect').value);
+
+            resultBox.style.display = "block";
+
+            if (player1Guess === randomResult) {
+                resultBox.className = "result-box win";
+                resultBox.innerHTML = `Angka yang keluar: <b>${randomResult}</b><br><br>🎉 ANDA MENANG!<br>Anda mendapatkan 0.0199 SOL (dipotong fee dev 0.5%)`;
+            } else {
+                resultBox.className = "result-box lose";
+                resultBox.innerHTML = `Angka yang keluar: <b>${randomResult}</b><br><br>💀 ANDA KALAH!<br>Taruhan 0.01 SOL Anda hilang.`;
+            }
+
+            joinGameBtn.innerText = "Pasang Taruhan & Main";
+            joinGameBtn.disabled = false;
+        }, 1500);
+    });
+</script>
+
+</body>
+</html>
