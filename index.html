@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Tebak Angka Solana</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: white; text-align: center; padding: 20px; margin: 0; }
+        .container { max-width: 450px; margin: auto; background: #1e1e1e; padding: 25px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.5); border: 1px solid #333; }
+        h2 { color: #14F195; margin-top: 0; }
+        button { background: #14F195; color: #000; border: none; padding: 12px 20px; font-weight: bold; font-size: 16px; border-radius: 8px; cursor: pointer; margin: 8px 0; width: 100%; transition: 0.2s; }
+        button:hover { background: #0fba72; }
+        button:disabled { background: #555; color: #999; cursor: not-allowed; }
+        select, input { padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; width: 100%; box-sizing: border-box; font-size: 16px; }
+        .dev-info { font-size: 12px; color: #777; margin-top: 25px; border-top: 1px solid #333; padding-top: 15px; }
+        .box { border: 1px solid #333; padding: 15px; border-radius: 8px; margin-bottom: 15px; background: #252525; }
+        .wallet-status { font-size: 13px; color: #aaa; word-break: break-all; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Tebak Angka (2 atau 5)</h2>
+    <p style="color: #ffb703; font-weight: bold;">Taruhan: 0.01 SOL</p>
+
+    <button id="connectBtn">Hubungkan Wallet</button>
+    <div id="walletAddress" class="wallet-status">Status: Belum terhubung</div>
+
+    <div class="box">
+        <h3 style="margin-top: 0; color: #4cc9f0;">Pemain 1: Buat Game</h3>
+        <select id="guessSelect">
+            <option value="2">Tebak Angka 2</option>
+            <option value="5">Tebak Angka 5</option>
+        </select>
+        <button id="createGameBtn" disabled>Buat Game (Pasang 0.01 SOL)</button>
+    </div>
+
+    <div class="box">
+        <h3 style="margin-top: 0; color: #f8961e;">Pemain 2: Bergabung</h3>
+        <input type="text" id="gameAddressInput" placeholder="Masukkan Alamat Game">
+        <button id="joinGameBtn" disabled>Pasang Taruhan & Main</button>
+    </div>
+
+    <div class="dev-info">
+        Developer Fee: 0.5% ke 3ninw...ELZc5
+    </div>
+</div>
+
+<!-- Import Library Solana dari CDN -->
+<script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
+<script src="https://unpkg.com/@project-serum/anchor@0.26.0/dist/browser/index.js"></script>
+
+<script>
+    // ==========================================
+    // KONFIGURASI (GANTI DENGAN MILIK ANDA)
+    // ==========================================
+    const PROGRAM_ID_STR = "GANTI_DENGAN_PROGRAM_ID_ANDA"; 
+    
+    // Masukkan IDL dari Smart Contract Anchor Anda di sini nanti
+    const IDL = { 
+        "version": "0.1.0",
+        "name": "tebak_angka_solana",
+        "instructions": []
+    };
+
+    const DEV_ADDRESS = "3ninwAaR453Mipjv2FTx5xGbHoigRGxnc373PZrELZc5";
+    const LAMPORTS_PER_SOL = 1000000000;
+
+    let provider = null;
+    let program = null;
+    let walletPublicKey = null;
+
+    const connectBtn = document.getElementById('connectBtn');
+    const createGameBtn = document.getElementById('createGameBtn');
+    const joinGameBtn = document.getElementById('joinGameBtn');
+    const walletAddressText = document.getElementById('walletAddress');
+
+    // Fungsi untuk mendeteksi Wallet (PC atau Mobile HP)
+    const getProvider = () => {
+        // 1. Deteksi In-App Browser Phantom (Solusi Paling Stabil di HP)
+        if ("phantom" in window) {
+            const provider = window.phantom?.solana;
+            if (provider?.isPhantom) return provider;
+        }
+        
+        // 2. Deteksi Ekstensi PC
+        if ("solana" in window) return window.solana;
+
+        // 3. Deteksi HP Biasa (Chrome/Safari) -> Arahkan ke Aplikasi Phantom via Deep Link
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+            const currentUrl = window.location.href;
+            const encodedUrl = encodeURIComponent(currentUrl);
+            // URL Deep Link Phantom
+            const phantomDeepLink = `https://phantom.app/ul/browse/${encodedUrl}?ref=${encodedUrl}`;
+            
+            alert("Membuka aplikasi Phantom... Jika gagal, pastikan Anda membuka link ini di dalam Browser bawaan aplikasi Phantom.");
+            window.location.href = phantomDeepLink;
+            return null;
+        }
+
+        alert("Wallet Solana tidak ditemukan! Install Phantom atau Solflare.");
+        return null;
+    };
+
+    // Tombol Connect Wallet
+    connectBtn.addEventListener('click', async () => {
+        const wallet = getProvider();
+        if (!wallet) return; // Jika di HP, dia akan redirect ke Phantom
+
+        try {
+            const response = await wallet.connect();
+            walletPublicKey = response.publicKey.toString();
+            walletAddressText.innerText = `Terhubung: ${walletPublicKey}`;
+            connectBtn.innerText = "Wallet Terhubung";
+            connectBtn.disabled = true;
+
+            // Setup Koneksi Solana (Devnet)
+            const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
+            
+            // Setup Anchor Provider
+            const anchorProvider = new anchor.AnchorProvider(connection, wallet, { preflightCommitment: 'confirmed' });
+            anchor.setProvider(anchorProvider);
+            
+            // Inisialisasi Program
+            const programId = new solanaWeb3.PublicKey(PROGRAM_ID_STR);
+            program = new anchor.Program(IDL, programId, anchorProvider);
+
+            // Aktifkan tombol game
+            createGameBtn.disabled = false;
+            joinGameBtn.disabled = false;
+
+        } catch (err) {
+            console.error(err);
+            alert("Gagal terhubung ke wallet.");
+        }
+    });
+
+    // Aksi Pemain 1: Buat Game
+    createGameBtn.addEventListener('click', async () => {
+        if (!program || !walletPublicKey) return;
+        createGameBtn.innerText = "Memproses...";
+        createGameBtn.disabled = true;
+
+        try {
+            const guess = parseInt(document.getElementById('guessSelect').value);
+            
+            // Buat akun baru untuk game ini
+            const gameKeypair = solanaWeb3.Keypair.generate();
+
+            // Panggil fungsi dari Smart Contract
+            await program.methods
+                .createGame(guess, new anchor.BN(0.01 * LAMPORTS_PER_SOL))
+                .accounts({
+                    game: gameKeypair.publicKey,
+                    player1: walletPublicKey,
+                    systemProgram: solanaWeb3.SystemProgram.programId,
+                })
+                .signers([gameKeypair])
+                .rpc();
+
+            alert(`Game Berhasil Dibuat!\n\nBagikan alamat ini ke Pemain 2:\n${gameKeypair.publicKey.toString()}`);
+            
+            // Salin otomatis ke input Pemain 2
+            document.getElementById('gameAddressInput').value = gameKeypair.publicKey.toString();
+
+        } catch (err) {
+            console.error(err);
+            alert("Gagal membuat game. Pastikan Program ID & IDL sudah benar.");
+        } finally {
+            createGameBtn.innerText = "Buat Game (Pasang 0.01 SOL)";
+            createGameBtn.disabled = false;
+        }
+    });
+
+    // Aksi Pemain 2: Join & Main
+    joinGameBtn.addEventListener('click', async () => {
+        if (!program || !walletPublicKey) return;
+        const gameAddressStr = document.getElementById('gameAddressInput').value;
+        
+        if (!gameAddressStr) return alert("Masukkan alamat game terlebih dahulu!");
+
+        joinGameBtn.innerText = "Memproses...";
+        joinGameBtn.disabled = true;
+
+        try {
+            const gamePubkey = new solanaWeb3.PublicKey(gameAddressStr);
+            
+            // Ambil data game untuk mendapatkan alamat Pemain 1
+            const gameData = await program.account.game.fetch(gamePubkey);
+
+            // Buat seed acak (Simulasi)
+            const randomSeed = Math.floor(Math.random() * 1000000);
+
+            // Panggil fungsi dari Smart Contract
+            await program.methods
+                .joinAndPlay(new anchor.BN(randomSeed))
+                .accounts({
+                    game: gamePubkey,
+                    player1: gameData.player1,
+                    player2: walletPublicKey,
+                    devAccount: new solanaWeb3.PublicKey(DEV_ADDRESS),
+                    systemProgram: solanaWeb3.SystemProgram.programId,
+                })
+                .rpc();
+
+            alert("Berhasil bergabung dan bermain! Cek wallet Anda.");
+
+        } catch (err) {
+            console.error(err);
+            alert("Gagal bergabung. Pastikan alamat game benar dan saldo cukup.");
+        } finally {
+            joinGameBtn.innerText = "Pasang Taruhan & Main";
+            joinGameBtn.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>
