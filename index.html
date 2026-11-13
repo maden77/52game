@@ -46,20 +46,72 @@
     </div>
 </div>
 
-<!-- Import Library Solana dari CDN -->
+<!-- Import Library Solana & Anchor dari CDN -->
 <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
 <script src="https://unpkg.com/@project-serum/anchor@0.26.0/dist/browser/index.js"></script>
 
 <script>
     // ==========================================
-    // KONFIGURASI (SESUAI DENGAN IDL ASLI ANDA)
+    // KONFIGURASI ANDA (PASTIKAN BENAR)
     // ==========================================
     const PROGRAM_ID_STR = "EKVN7AXMJF1punDCNrGuCNFQ2aP8a4h6ZLtf4tyxhvoD"; 
-
-    const IDL = {"version":"0.1.0","name":"game_52","instructions":[{"name":"createGame","accounts":[{"name":"game","isMut":true,"isSigner":true},{"name":"player1","isMut":true,"isSigner":true},{"name":"systemProgram","isMut":false,"isSigner":false}],"args":[{"name":"guess","type":"u8"},{"name":"wager","type":"u64"}]},{"name":"joinAndPlay","accounts":[{"name":"game","isMut":true,"isSigner":false},{"name":"player1","isMut":true,"isSigner":false},{"name":"player2","isMut":true,"isSigner":true},{"name":"devAccount","isMut":true,"isSigner":false},{"name":"systemProgram","isMut":false,"isSigner":false}],"args":[{"name":"randomSeed","type":"u64"}]}],"accounts":[{"name":"Game","type":{"kind":"struct","fields":[{"name":"player1","type":"publicKey"},{"name":"player1Guess","type":"u8"},{"name":"wager","type":"u64"},{"name":"status","type":{"defined":"GameStatus"}},{"name":"player2","type":"publicKey"},{"name":"result","type":"u8"}]}}],"types":[{"name":"GameStatus","type":{"kind":"enum","variants":[{"name":"WaitingForPlayer2"},{"name":"Finished"}]}}],"errors":[{"code":6000,"name":"InvalidGuess","msg":"Tebakan harus 2 atau 5"},{"code":6001,"name":"InvalidWager","msg":"Taruhan harus tepat 0.01 SOL"},{"code":6002,"name":"GameNotAvailable","msg":"Game tidak tersedia atau sudah selesai"}]};
-
     const DEV_ADDRESS = "3ninwAaR453Mipjv2FTx5xGbHoigRGxnc373PZrELZc5";
     const LAMPORTS_PER_SOL = 1000000000;
+
+    // IDL SANGAT RINGKAS (Hanya butuh fungsi utamanya)
+    const IDL = {
+      "version": "0.1.0",
+      "name": "game_52",
+      "instructions": [
+        {
+          "name": "createGame",
+          "accounts": [
+            { "name": "game", "isMut": true, "isSigner": true },
+            { "name": "player1", "isMut": true, "isSigner": true },
+            { "name": "systemProgram", "isMut": false, "isSigner": false }
+          ],
+          "args": [
+            { "name": "guess", "type": "u8" },
+            { "name": "wager", "type": "u64" }
+          ]
+        },
+        {
+          "name": "joinAndPlay",
+          "accounts": [
+            { "name": "game", "isMut": true, "isSigner": false },
+            { "name": "player1", "isMut": true, "isSigner": false },
+            { "name": "player2", "isMut": true, "isSigner": true },
+            { "name": "devAccount", "isMut": true, "isSigner": false },
+            { "name": "systemProgram", "isMut": false, "isSigner": false }
+          ],
+          "args": [
+            { "name": "randomSeed", "type": "u64" }
+          ]
+        }
+      ],
+      "accounts": [
+        {
+          "name": "Game",
+          "type": {
+            "kind": "struct",
+            "fields": [
+              { "name": "player1", "type": "publicKey" },
+              { "name": "player1Guess", "type": "u8" },
+              { "name": "wager", "type": "u64" },
+              { "name": "status", "type": { "defined": "GameStatus" } },
+              { "name": "player2", "type": "publicKey" },
+              { "name": "result", "type": "u8" }
+            ]
+          }
+        }
+      ],
+      "types": [
+        {
+          "name": "GameStatus",
+          "type": { "kind": "enum", "variants": [ { "name": "WaitingForPlayer2" }, { "name": "Finished" } ] }
+        }
+      ]
+    };
 
     let provider = null;
     let program = null;
@@ -70,27 +122,17 @@
     const joinGameBtn = document.getElementById('joinGameBtn');
     const walletAddressText = document.getElementById('walletAddress');
 
-    // Fungsi Deteksi Wallet
     const getProvider = () => {
-        if ("phantom" in window) {
-            const provider = window.phantom?.solana;
-            if (provider?.isPhantom) return provider;
-        }
+        if ("phantom" in window) return window.phantom?.solana;
         if ("solana" in window) return window.solana;
-        
-        // Jika di HP biasa, arahkan ke In-App Browser Phantom
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile) {
-            const currentUrl = window.location.href;
-            const encodedUrl = encodeURIComponent(currentUrl);
+            const encodedUrl = encodeURIComponent(window.location.href);
             window.location.href = `https://phantom.app/ul/browse/${encodedUrl}?ref=${encodedUrl}`;
-            return null;
         }
-        alert("Wallet Solana tidak ditemukan! Install Phantom.");
         return null;
     };
 
-    // Tombol Connect
     connectBtn.addEventListener('click', async () => {
         const wallet = getProvider();
         if (!wallet) return;
@@ -102,40 +144,36 @@
             connectBtn.innerText = "Wallet Terhubung";
             connectBtn.disabled = true;
 
-            // Koneksi ke Devnet
+            // Koneksi Devnet
             const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('devnet'), 'confirmed');
             const anchorProvider = new anchor.AnchorProvider(connection, wallet, { preflightCommitment: 'confirmed' });
             anchor.setProvider(anchorProvider);
 
-            // Inisialisasi Program menggunakan IDL yang valid
+            // Load Program
             const programId = new solanaWeb3.PublicKey(PROGRAM_ID_STR);
             program = new anchor.Program(IDL, programId, anchorProvider);
 
-            // Aktifkan Tombol
+            // Nyalakan tombol
             createGameBtn.disabled = false;
             joinGameBtn.disabled = false;
 
         } catch (err) {
             console.error(err);
-            alert("Gagal terhubung ke wallet. Pastikan Anda menggunakan jaringan Devnet.");
+            alert("Gagal terhubung: " + err.message);
         }
     });
 
-    // Aksi Pemain 1: Buat Game
     createGameBtn.addEventListener('click', async () => {
-        if (!program || !walletPublicKey) return alert("Wallet belum terhubung sepenuhnya.");
-        
+        if (!program || !walletPublicKey) return alert("Sistem belum siap.");
         createGameBtn.innerText = "Memproses...";
         createGameBtn.disabled = true;
 
         try {
             const guess = parseInt(document.getElementById('guessSelect').value);
-            
-            // Generate Keypair untuk akun game baru
             const gameKeypair = solanaWeb3.Keypair.generate();
 
-            // Panggil fungsi createGame di Smart Contract
-            const tx = await program.methods
+            // Panggil fungsi create_game
+            await program.methods
                 .createGame(guess, new anchor.BN(0.01 * LAMPORTS_PER_SOL))
                 .accounts({
                     game: gameKeypair.publicKey,
@@ -145,39 +183,33 @@
                 .signers([gameKeypair])
                 .rpc();
 
-            console.log("Transaksi Sukses:", tx);
-            alert(`Game Berhasil Dibuat!\n\nAlamat Game Anda:\n${gameKeypair.publicKey.toString()}\n\nSilakan copy alamat ini untuk Pemain 2.`);
-            
+            alert(`Game Berhasil Dibuat!\n\nAlamat Game:\n${gameKeypair.publicKey.toString()}`);
             document.getElementById('gameAddressInput').value = gameKeypair.publicKey.toString();
 
         } catch (err) {
             console.error(err);
-            alert("Gagal membuat game. Pastikan saldo SOL Devnet Anda cukup (minimal 0.02 SOL) dan Program ID benar.");
+            alert("Gagal buat game. Pastikan saldo Devnet Anda > 0.02 SOL.");
         } finally {
             createGameBtn.innerText = "Buat Game (Pasang 0.01 SOL)";
             createGameBtn.disabled = false;
         }
     });
 
-    // Aksi Pemain 2: Join & Main
     joinGameBtn.addEventListener('click', async () => {
-        if (!program || !walletPublicKey) return alert("Wallet belum terhubung sepenuhnya.");
-        
+        if (!program || !walletPublicKey) return alert("Sistem belum siap.");
         const gameAddressStr = document.getElementById('gameAddressInput').value;
-        if (!gameAddressStr) return alert("Masukkan alamat game terlebih dahulu!");
+        if (!gameAddressStr) return alert("Masukkan alamat game!");
 
         joinGameBtn.innerText = "Memproses...";
         joinGameBtn.disabled = true;
 
         try {
             const gamePubkey = new solanaWeb3.PublicKey(gameAddressStr);
-            
-            // Ambil data game dari blockchain
             const gameData = await program.account.game.fetch(gamePubkey);
             const randomSeed = Math.floor(Math.random() * 1000000);
 
-            // Panggil fungsi joinAndPlay
-            const tx = await program.methods
+            // Panggil fungsi join_and_play
+            await program.methods
                 .joinAndPlay(new anchor.BN(randomSeed))
                 .accounts({
                     game: gamePubkey,
@@ -188,12 +220,11 @@
                 })
                 .rpc();
 
-            console.log("Transaksi Sukses:", tx);
-            alert("Berhasil bergabung dan bermain! Cek wallet Anda untuk melihat hadiah (jika menang).");
+            alert("Berhasil bergabung dan bermain! Cek wallet Anda.");
 
         } catch (err) {
             console.error(err);
-            alert("Gagal bergabung. Pastikan alamat game valid, game belum dimainkan, dan saldo SOL Devnet cukup.");
+            alert("Gagal bergabung. Pastikan alamat benar dan saldo cukup.");
         } finally {
             joinGameBtn.innerText = "Pasang Taruhan & Main";
             joinGameBtn.disabled = false;
